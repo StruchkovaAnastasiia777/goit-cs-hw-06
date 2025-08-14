@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: studyvault-app
+    ports:
+      - "3000:3000"
+      - "5000:5000"
+    depends_on:
+      - mongo
+    environment:
+      - MONGODB_URL=mongodb://mongo:27017/
+    volumes:
+      - ./static:/app/static:ro
+    networks:
+      - studyvault-network
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7.0
+    container_name: studyvault-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=studyvault
+    volumes:
+      - studyvault-mongo-data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - studyvault-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: studyvault-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=studyvault123
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - studyvault-network
+    restart: unless-stopped
+    profiles:
+      - debug
+
+volumes:
+  studyvault-mongo-data:
+    name: studyvault-mongo-data
+    driver: local
+
+networks:
+  studyvault-network:
+    name: studyvault-network
+    driver: bridge
